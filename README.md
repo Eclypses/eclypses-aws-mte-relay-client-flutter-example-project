@@ -9,7 +9,7 @@ MteRelay Mobile Client for <br>Amazon Web Services</div>
 Flutter Implementation</div>
 <br><br><br>
 
-### Both Android and iOS Flutter implementations are demonstrated in this project. For detailed information, see the README.md file contained in iOS > [README.md](ios/README.md) or Android > [README.md](android/README.md). 
+### Both Android and iOS Flutter implementations are demonstrated in this project. For detailed information, see the README.md file contained in iOS > [README.md](wpt_flutter_relay/ios/README.md) or Android > [README.md](wpt_flutter_relay/android/README.md). 
  
 <br><br>
 
