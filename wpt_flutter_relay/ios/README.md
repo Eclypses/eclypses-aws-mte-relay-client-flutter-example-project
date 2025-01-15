@@ -1,3 +1,5 @@
+<link rel="stylesheet" type="text/css" href="../../eclypses.css">
+
 <center>
 <img src="../../Eclypses.png" style="width:50%;"/>
 </center>
@@ -11,7 +13,7 @@ Flutter Implementation</div>
 
 # MteRelay Swift Package
 
-### The SPM package provides out-of-the-box MTE integration into Swift iOS applications, allowing quick integration with very minimal code changes.  This Amazon Web Services (AWS) Client Package requires a corresponding AWS MteRelay Server API to receive the encoded requests and relay them onto the original API. This Documentation focuses on Flutter integration specifically. 
+This SPM package provides out-of-the-box MTE integration into Swift iOS applications, allowing quick integration with very minimal code changes.  This Amazon Web Services (AWS) Client Package requires a corresponding AWS MteRelay Server API to receive the encoded requests and relay them onto the original API. This Documentation focuses on Flutter integration specifically. 
  
 <br><br>
 

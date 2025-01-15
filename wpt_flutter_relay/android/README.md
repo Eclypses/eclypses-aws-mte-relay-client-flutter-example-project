@@ -1,3 +1,5 @@
+<link rel="stylesheet" type="text/css" href="../../eclypses.css">
+
 <center>
 <img src="../../Eclypses.png" style="width:50%;"/>
 </center>
