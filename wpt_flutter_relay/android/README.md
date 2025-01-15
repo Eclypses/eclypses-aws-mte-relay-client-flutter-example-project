@@ -1,5 +1,5 @@
 <center>
-<img src="Eclypses.png" style="width:50%;"/>
+<img src="../../Eclypses.png" style="width:50%;"/>
 </center>
 
 <div align="center" style="font-size:40pt; font-weight:900; font-family:arial; margin-top:50px;" >
