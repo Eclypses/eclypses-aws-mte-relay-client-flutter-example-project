@@ -1,0 +1,15 @@
+{
+  "originHash" : "b791062136de0ac31a929c0ed9d9f1aa914f0d06ad431d17fb6b646ca04e9146",
+  "pins" : [
+    {
+      "identity" : "eclypses-aws-mte-relay-client-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/Eclypses/eclypses-aws-mte-relay-client-ios.git",
+      "state" : {
+        "revision" : "8ba5c6ff71f32aa4eb196b0af1f879ae2b78dc37",
+        "version" : "3.6.3"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:poc_flutter_relay/relay_helper.dart';
 import 'package:poc_flutter_relay/multipart_helper.dart';
 
 import 'dart:io';
@@ -31,7 +30,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
 
-    // Set a listener for messages from Swift
+    // Set a listener for messages from native
     platform.setMethodCallHandler((call) async {
       switch (call.method) {
         case "getFileStream":
@@ -41,8 +40,41 @@ class _MyAppState extends State<MyApp> {
         case "relayResponseMessage":
           String message = call.arguments;
           _showResult(message);
+        case "streamCompletionPercentage":
+          double progress = call.arguments;
+          _updateProgress(progress);
+        case "relayStreamResponse":
+          Map<String, List<String>>? responseHeaders;
+          dynamic args = call.arguments;
+          bool success = args['success'] as bool;
+          String? responseStr = args["responseStr"] as String?;
+          String? errorMessage = args["errorMessage"] as String?;
+          if (args['responseHeaders'] != null &&
+              args['responseHeaders'] is Map) {
+            responseHeaders = (args['responseHeaders'] as Map).map(
+              (key, value) => MapEntry(
+                key.toString(), 
+                List<String>.from(
+                    value as List), 
+              ),
+            );
+          } else {
+            responseHeaders =
+                null; // Handle the case where responseHeaders is null or invalid
+          }
+
+          String message =
+              "Success: $success\n ResponseString: $responseStr\n ErrorMessage: $errorMessage\n ResponseHeaders: $responseHeaders";
+              print(message);
+          _showResult(message);
       }
     });
+
+    initializeRelay();
+  }
+
+  Future<void> initializeRelay() async {
+    await platform.invokeMethod('initializeRelay');
   }
 
   void startStreaming(String streamID) async {
@@ -59,7 +91,6 @@ class _MyAppState extends State<MyApp> {
     await platform.invokeMethod("closeStream", {"streamID": streamID});
   }
 
-  final RelayHelper _relayHelper = RelayHelper();
   late MultipartHelper builder;
   late File file;
 
@@ -69,7 +100,7 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> loginDirect() async {
     String urlWithPath = "$endpointServerUrl/<route>";
-    final postLoginBody =
+    final body =
         jsonEncode({"email": "<email address>", "password": "<password>"});
     try {
       final response = await http.post(
@@ -77,7 +108,7 @@ class _MyAppState extends State<MyApp> {
         headers: {
           "Content-Type": "application/json",
         },
-        body: postLoginBody,
+        body: body,
       );
 
       if (response.statusCode == 200) {
@@ -89,8 +120,6 @@ class _MyAppState extends State<MyApp> {
       } else {
         _showResult("Error: ${response.body}");
       }
-
-;
     } catch (error) {
       _showResult("Error: $error");
     }
@@ -119,16 +148,16 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> login() async {
     String urlWithPath = "$relayServerUrl/<route>";
-    final postLoginBody =
+    final body =
         jsonEncode({"email": "<email address>", "password": "<password>"});
     try {
-      final result = await _relayHelper.relayDataTask(
-        urlWithPath,
-        'POST',
-        {'Content-Type': 'application/json'},
-        postLoginBody,
-        headersToEncrypt,
-      );
+      final String result = await platform.invokeMethod('relayDataTask', {
+      'url': urlWithPath,
+      'method': 'POST',
+      'headers': {'Content-Type': 'application/json'},
+      'headersToEncrypt': headersToEncrypt,
+      'body': body
+    });
 
       // Retrieve AuthToken
       authToken = 'Bearer ${jsonDecode(result)['data']['access_token']}';
@@ -144,13 +173,12 @@ class _MyAppState extends State<MyApp> {
     String urlWithPath =
         "$relayServerUrl/<route>";
     try {
-      final result = await _relayHelper.relayDataTask(
-        urlWithPath,
-        'GET',
-        {'Content-Type': 'application/json', 'Authorization': authToken},
-        "",
-        headersToEncrypt,
-      );
+      final String result = await platform.invokeMethod('relayDataTask', {
+      'url': urlWithPath,
+      'method': 'GET',
+      'headers': {'Content-Type': 'application/json', 'Authorization': authToken},
+      'headersToEncrypt': headersToEncrypt,
+    });
 
       // Display Result
       _showResult(result);
@@ -183,7 +211,7 @@ class _MyAppState extends State<MyApp> {
         final paramValue = param['value'];
         body.add(utf8.encode('\r\n\r\n$paramValue\r\n'));
       } else if (paramType == 'file') {
-        final file = await getFileToUpload("small");
+        final file = await getFileToUpload();
         if (await file.exists()) {
           String filename = file.path.split(Platform.pathSeparator).last;
           body.add(utf8.encode('; filename="$filename"\r\n'));
@@ -200,17 +228,14 @@ class _MyAppState extends State<MyApp> {
 
 // Send to relay
     try {
-      final result = await _relayHelper.relayDataTask(
-        urlWithPath,
-        'POST',
-        {
-          'Content-Type': 'multipart/form-data; boundary=$boundary',
-          'Authorization': authToken
-        },
-        // bodyBytes.toString(),
-        utf8.decode(bodyBytes),
-        headersToEncrypt,
-      );
+       final String result = await platform.invokeMethod('relayDataTask', {
+      'url': urlWithPath,
+      'method': 'POST',
+      'headers': {'Content-Type': 'multipart/form-data; boundary=$boundary',
+          'Authorization': authToken},
+      'headersToEncrypt': headersToEncrypt,
+      'body': utf8.decode(bodyBytes)
+    });
 
       // Display Result
       _showResult(result);
@@ -221,15 +246,15 @@ class _MyAppState extends State<MyApp> {
 
   Future<void> createNote() async {
     String urlWithPath = "$relayServerUrl/<route>";
-    final postLoginBody = jsonEncode({"note": "He is my best friend!"});
+    final body = jsonEncode({"note": "He is my best friend!"});
     try {
-      final result = await _relayHelper.relayDataTask(
-        urlWithPath,
-        'POST',
-        {'Content-Type': 'application/json', 'Authorization': authToken},
-        postLoginBody,
-        headersToEncrypt,
-      );
+      final String result = await platform.invokeMethod('relayDataTask', {
+      'url': urlWithPath,
+      'method': 'POST',
+      'headers': {'Content-Type': 'application/json', 'Authorization': authToken},
+      'headersToEncrypt': headersToEncrypt,
+      'body': body
+    });
 
       // Retrieve Note Id to use in subsequent requests
       lastNoteId = jsonDecode(result)['data']['id'];
@@ -245,13 +270,12 @@ class _MyAppState extends State<MyApp> {
     String urlWithPath = "$relayServerUrl/<route>";
 
     try {
-      final result = await _relayHelper.relayDataTask(
-        urlWithPath,
-        'GET',
-        {'Content-Type': 'application/json', 'Authorization': authToken},
-        "",
-        headersToEncrypt,
-      );
+      final String result = await platform.invokeMethod('relayDataTask', {
+      'url': urlWithPath,
+      'method': 'GET',
+      'headers': {'Content-Type': 'application/json', 'Authorization': authToken},
+      'headersToEncrypt': headersToEncrypt,
+    });
 
       // Display Result
       _showResult(result);
@@ -294,16 +318,13 @@ class _MyAppState extends State<MyApp> {
 
 // Send to relay
     try {
-      final result = await _relayHelper.relayDataTask(
-        urlWithPath,
-        'PUT',
-        {
-          'Content-Type': 'multipart/form-data; boundary=$boundary',
-          'Authorization': authToken
-        },
-        body.toString(),
-        headersToEncrypt,
-      );
+      final String result = await platform.invokeMethod('relayDataTask', {
+      'url': urlWithPath,
+      'method': 'PUT',
+      'headers': {'Content-Type': 'multipart/form-data; boundary=$boundary', 'Authorization': authToken},
+      'headersToEncrypt': headersToEncrypt,
+      'body': body.toString()
+    });
 
 // Display Result
       _showResult(result);
@@ -318,13 +339,12 @@ class _MyAppState extends State<MyApp> {
 
 // Send to relay
     try {
-      final result = await _relayHelper.relayDataTask(
-        urlWithPath,
-        'DELETE',
-        {'Authorization': authToken},
-        "",
-        headersToEncrypt,
-      );
+      final String result = await platform.invokeMethod('relayDataTask', {
+      'url': urlWithPath,
+      'method': 'DELETE',
+      'headers': {'Authorization': authToken},
+      'headersToEncrypt': headersToEncrypt,
+    });
 
 // Display Result
       _showResult(result);
@@ -341,14 +361,64 @@ class _MyAppState extends State<MyApp> {
   };
 
   String? _result; // Variable to hold the result of the API call
+   double _progress = 0.0;
 
-  Future<File> getFileToUpload(String filesize) async {
+  Future<File> getFileToUpload() async {
     final directory = await getApplicationDocumentsDirectory();
     String dirStr = directory.path;
-    return File("$dirStr/The Gettysburg Address.txt");
+    String filename = "The Gettysburg Address.txt";
+    lastUpload = filename;
+    return File("$dirStr/$filename");
   }
 
-  // String lastUpload = "";
+  String lastUpload = "";
+
+  Future<void> uploadFileStream(File file) async {
+    String filename = file.path.split(Platform.pathSeparator).last;
+
+    String urlWithPath = "$relayServerUrl/<route>";
+    final uri = Uri.parse(urlWithPath);
+
+    builder = MultipartHelper(filename);
+
+    final httpClientRequest = await HttpClient().postUrl(uri);
+
+    // Set required headers
+    httpClientRequest.headers.set(HttpHeaders.contentTypeHeader,
+        'multipart/form-data; boundary=${builder.boundary}');
+    int contentLength = await builder.calculateContentLength(file);
+    httpClientRequest.headers
+        .set(HttpHeaders.contentLengthHeader, contentLength.toString());
+
+    final requestData =
+        await convertHttpRequestToMap(httpClientRequest, headersToEncrypt);
+    var result = await platform.invokeMethod('relayUploadFile', requestData);
+
+    // Display Result
+    _showResult(result);
+  }
+
+  Future<void> downloadFileStream() async {
+    final urlEncodedFilename = Uri.encodeComponent(lastUpload);
+    final downloadLocation = await getDownloadUrl(lastUpload);
+    String urlWithPath =
+        "$relayServerUrl/<route>/$urlEncodedFilename";
+    try {
+      final arguments = {
+        'url': urlWithPath,
+        'method': 'GET',
+        'headers': {'Content-Type': 'application/json'},
+        'headersToEncrypt': headersToEncrypt,
+        'downloadLocation': downloadLocation,
+      };
+      var result = await platform.invokeMethod('relayDownloadFile', arguments);
+
+      // Display Result
+      _showResult(result);
+    } catch (error) {
+      _showResult("Error: $error");
+    }
+  }
 
   Future<void> rePair() async {
     try {
@@ -409,6 +479,47 @@ class _MyAppState extends State<MyApp> {
         _result = null;
       });
     });
+  }
+
+  void _updateProgress(double progress) {
+    setState(() {
+      _progress = progress;
+    });
+
+    // Hide the progress bar when upload completes
+    if (progress == 1.0) {
+      setState(() {
+        _progress = 0.0;
+      });
+    }
+  }
+
+  Future<String> getDownloadUrl(String filename) async {
+    // Retrieve the documents directory
+    final Directory? docsDir = await getApplicationDocumentsDirectory();
+    if (docsDir == null) {
+      throw Exception("Unable to retrieve local documents directory");
+    }
+
+    // Construct the file URL
+    final Directory downloadDirectory = Directory('${docsDir.path}/downloads');
+    final File storedFile = File('${downloadDirectory.path}/$filename');
+
+    // Create the download directory if it doesn't exist
+    if (!await downloadDirectory.exists()) {
+      await downloadDirectory.create(recursive: true);
+    }
+
+    // Create the file if it doesn't exist and overwrite it empty if it does exist
+    if (!await storedFile.exists()) {
+      await storedFile.create();
+    } else {
+      await storedFile
+          .writeAsBytes([]); // Overwrite the file with empty content
+    }
+
+    // Return the filePath
+    return storedFile.uri.toFilePath();
   }
 
   @override
@@ -563,6 +674,60 @@ class _MyAppState extends State<MyApp> {
                     "Delete Note",
                     style: TextStyle(
                       fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFF6531E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            _progress != 0.0
+                ? Column(
+                    children: [
+                      LinearProgressIndicator(
+                        value: _progress, // Set progress value
+                        minHeight: 10.0,
+                        backgroundColor: Colors.grey[300],
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Color(0xFFF6531E)),
+                      ),
+                      const SizedBox(height: 20),
+                      // Display progress percentage
+                      Text(
+                        "${(_progress * 100).toStringAsFixed(1)}%", // Show percentage
+                        style: const TextStyle(
+                            fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  )
+                : const SizedBox
+                    .shrink(), // Return an empty widget when _progress is 0.0
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () async {
+                    await uploadFileStream(await getFileToUpload());
+                  },
+                  child: const Text(
+                    "Upload Filestream",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFF6531E),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: () async {
+                    await downloadFileStream();
+                  },
+                  child: const Text(
+                    "Download Filestream",
+                    style: TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFF6531E),
                     ),
